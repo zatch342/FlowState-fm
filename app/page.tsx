@@ -55,6 +55,13 @@ type FlowMode = keyof TasteCategories;
 
 type TasteResponse = {
   categories: TasteCategories;
+  debug?: {
+    tracks: {
+      artist: string;
+      title: string;
+      vector: TasteCategories;
+    }[];
+  };
   dominantCategory: FlowMode;
 };
 
@@ -63,6 +70,7 @@ type RecommendationResponse = {
   songs: {
     artist: string;
     image?: string;
+    reason: string;
     score: number;
     title: string;
   }[];
@@ -383,6 +391,9 @@ export default function Home() {
                       <p className="truncate text-sm text-zinc-400">
                         {song.artist}
                       </p>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        Why this? {song.reason}
+                      </p>
                     </div>
                     <p className="text-sm font-semibold text-green-400">
                       {song.score}
@@ -392,6 +403,27 @@ export default function Home() {
               </div>
             ) : null}
           </section>
+
+          {taste?.debug ? (
+            <section className="w-full">
+              <h3 className="mb-4 text-xl font-semibold">Debug Taste Values</h3>
+              <div className="flex flex-col gap-4">
+                {taste.debug.tracks.map((track) => (
+                  <div key={`${track.title}-${track.artist}`}>
+                    <p className="font-medium">{track.title}</p>
+                    <p className="text-sm text-zinc-500">{track.artist}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-400 sm:grid-cols-5">
+                      {flowCategories.map((category) => (
+                        <p key={category.key}>
+                          {category.label}: {track.vector[category.key]}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Your Top Tracks</h3>

@@ -2,19 +2,24 @@ import { headers } from "next/headers";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "../../auth/[...nextauth]/route";
-import { classifyTaste } from "@/lib/classifyTaste";
+import { classifyTaste, getTrackTasteVectors } from "@/lib/classifyTaste";
 
 type SpotifyListResponse<T> = {
   items?: T[];
 };
 
 type SpotifyTrack = {
+  artists?: {
+    name: string;
+  }[];
   duration_ms?: number;
+  name: string;
   popularity?: number;
 };
 
 type SpotifyArtist = {
   genres?: string[];
+  name: string;
 };
 
 export async function GET() {
@@ -72,6 +77,15 @@ export async function GET() {
 
   return Response.json({
     categories,
+    debug:
+      process.env.DEBUG === "true"
+        ? {
+            tracks: getTrackTasteVectors(
+              tracksData.items ?? [],
+              artistsData.items ?? [],
+            ),
+          }
+        : undefined,
     dominantCategory,
   });
 }

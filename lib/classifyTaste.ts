@@ -7,13 +7,24 @@ export type FlowCategory =
 
 export type TasteCategories = Record<FlowCategory, number>;
 
-type SpotifyTrack = {
+export type TrackTasteVector = {
+  artist: string;
+  title: string;
+  vector: TasteCategories;
+};
+
+export type SpotifyTrackForTaste = {
+  artists?: {
+    name: string;
+  }[];
   duration_ms?: number;
+  name: string;
   popularity?: number;
 };
 
-type SpotifyArtist = {
+export type SpotifyArtistForTaste = {
   genres?: string[];
+  name: string;
 };
 
 const categories: FlowCategory[] = [
@@ -24,28 +35,28 @@ const categories: FlowCategory[] = [
   "worship",
 ];
 
-const genreWeights: Record<FlowCategory, string[]> = {
-  focus: ["lofi", "ambient", "study", "instrumental"],
-  energy: ["dance", "electronic", "edm", "hip hop", "pop"],
-  chill: ["indie", "acoustic", "folk", "rnb", "chill"],
-  escape: ["soundtrack", "cinematic", "alternative", "dream"],
+const keywordWeights: Record<FlowCategory, string[]> = {
+  focus: ["instrumental", "ambient", "study", "lofi"],
+  escape: ["cinematic", "soundtrack", "dream", "alternative", "emotional"],
+  chill: ["acoustic", "indie", "rnb", "chill", "soft pop", "folk"],
+  energy: ["dance", "edm", "electronic", "pop", "upbeat"],
   worship: ["worship", "gospel", "christian", "praise"],
 };
 
-function createScores(): Record<FlowCategory, number> {
+function createScores(value = 0): Record<FlowCategory, number> {
   return {
-    focus: 1,
-    escape: 1,
-    chill: 1,
-    energy: 1,
-    worship: 1,
+    focus: value,
+    escape: value,
+    chill: value,
+    energy: value,
+    worship: value,
   };
 }
 
 function normalizeScores(scores: Record<FlowCategory, number>): TasteCategories {
   const total = categories.reduce((sum, category) => sum + scores[category], 0);
 
-  if (total === 0) {
+  if (total <= 0) {
     return {
       focus: 20,
       escape: 20,
@@ -72,43 +83,94 @@ function normalizeScores(scores: Record<FlowCategory, number>): TasteCategories 
   return normalized;
 }
 
-export function classifyTaste(
-  tracks: SpotifyTrack[] = [],
-  artists: SpotifyArtist[] = [],
-): TasteCategories {
-  const scores = createScores();
+function matchedArtistGenres(
+  track: SpotifyTrackForTaste,
+  artists: SpotifyArtistForTaste[],
+): string[] {
+  const trackArtistNames = new Set(
+    (track.artists ?? []).map((artist) => artist.name.toLowerCase()),
+  );
 
-  for (const track of tracks) {
-    const popularity = track.popularity ?? 0;
-    const durationMs = track.duration_ms ?? 0;
+  return artists
+    .filter((artist) => trackArtistNames.has(artist.name.toLowerCase()))
+    .flatMap((artist) => artist.genres ?? [])
+    .map((genre) => genre.toLowerCase());
+}
 
-    scores.energy += (popularity / 100) * 2.5;
-
-    if (durationMs >= 300000) {
-      scores.escape += 2;
-      scores.focus += 0.5;
-    } else if (durationMs > 0 && durationMs <= 180000) {
-      scores.energy += 1.5;
-    } else if (durationMs >= 240000) {
-      scores.escape += 0.75;
-    }
-  }
-
-  for (const artist of artists) {
-    for (const genre of artist.genres ?? []) {
-      const normalizedGenre = genre.toLowerCase();
-
-      for (const category of categories) {
-        if (
-          genreWeights[category].some((keyword) =>
-            normalizedGenre.includes(keyword),
-          )
-        ) {
-          scores[category] += 4;
-        }
+function scoreKeywords(
+  scores: Record<FlowCategory, number>,
+  searchableText: string,
+) {
+  for (const category of categories) {
+    for (const keyword of keywordWeights[category]) {
+      if (searchableText.includes(keyword)) {
+        scores[category] += 18;
       }
     }
   }
+}
+
+export function getTrackTasteVector(
+  track: SpotifyTrackForTaste,
+  artists: SpotifyArtistForTaste[] = [],
+): TasteCategories {
+  const scores = createScores(2);
+  const popularity = track.popularity ?? 50;
+  const durationMs = track.duration_ms ?? 210000;
+  const durationMinutes = durationMs / 60000;
+  const genres = matchedArtistGenres(track, artists);
+  const searchableText = [track.name, ...genres].join(" ").toLowerCase();
+
+  scoreKeywords(scores, searchableText);
+
+  scores.energy += popularity * 0.22;
+  scores.focus += (100 - popularity) * 0.12;
+
+  if (durationMinutes > 0 && durationMinutes <= 3) {
+    scores.energy += 14;
+  }
+
+  if (durationMinutes >= 3 && durationMinutes <= 4.5) {
+    scores.chill += 12;
+  }
+
+  if (durationMinutes >= 4.5) {
+    scores.focus += 12;
+    scores.escape += 10;
+  }
+
+  if (durationMinutes >= 3.5 && durationMinutes <= 5.5) {
+    scores.escape += 6;
+  }
 
   return normalizeScores(scores);
+}
+
+export function getTrackTasteVectors(
+  tracks: SpotifyTrackForTaste[] = [],
+  artists: SpotifyArtistForTaste[] = [],
+): TrackTasteVector[] {
+  return tracks.map((track) => ({
+    artist:
+      track.artists?.map((artist) => artist.name).join(", ") ??
+      "Unknown artist",
+    title: track.name,
+    vector: getTrackTasteVector(track, artists),
+  }));
+}
+
+export function classifyTaste(
+  tracks: SpotifyTrackForTaste[] = [],
+  artists: SpotifyArtistForTaste[] = [],
+): TasteCategories {
+  const aggregate = createScores();
+  const vectors = getTrackTasteVectors(tracks, artists);
+
+  for (const { vector } of vectors) {
+    for (const category of categories) {
+      aggregate[category] += vector[category];
+    }
+  }
+
+  return normalizeScores(aggregate);
 }
