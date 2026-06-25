@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 import FlowScene from "@/components/FlowScene";
+import { useFlowSession } from "@/hooks/useFlowSession";
 
 type SpotifyProfile = {
   country?: string;
@@ -275,6 +276,15 @@ export default function Home() {
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
   const [selectedMode, setSelectedMode] = useState<FlowMode | null>(null);
+  const [isResumeBadgeDismissed, setIsResumeBadgeDismissed] = useState(false);
+  const [shouldPersistFlowSession, setShouldPersistFlowSession] =
+    useState(true);
+  const {
+    clearSession,
+    isReady: isFlowSessionReady,
+    saveSession,
+    session: flowSession,
+  } = useFlowSession();
   const profileState = useSpotifyResource<SpotifyProfile>(
     "/api/spotify/me",
     isAuthenticated,
@@ -295,10 +305,18 @@ export default function Home() {
   const topTracks = topTracksState.data?.items ?? [];
   const topArtists = topArtistsState.data?.items ?? [];
   const taste = tasteState.data;
-  const activeMode = selectedMode ?? taste?.dominantCategory ?? "focus";
+  const restoredMode =
+    flowSession?.selectedMode ??
+    flowSession?.lastRecommendationMode ??
+    flowSession?.lastScene ??
+    null;
+  const activeMode =
+    selectedMode ?? restoredMode ?? taste?.dominantCategory ?? "focus";
+  const shouldShowResumeBadge =
+    isAuthenticated && !isResumeBadgeDismissed && restoredMode !== null;
   const recommendationState = useSpotifyResource<RecommendationResponse>(
     `/api/spotify/recommend?mode=${activeMode}`,
-    isAuthenticated,
+    isAuthenticated && isFlowSessionReady,
   );
   const recommendedSongs = recommendationState.data?.songs ?? [];
 
@@ -306,6 +324,58 @@ export default function Home() {
     profile?.display_name ?? session?.user?.name ?? "listener";
   const profileImage =
     profile?.images?.[0]?.url ?? session?.user?.image ?? undefined;
+
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      !isFlowSessionReady ||
+      !shouldPersistFlowSession
+    ) {
+      return;
+    }
+
+    const modeToPersist = selectedMode ?? restoredMode ?? taste?.dominantCategory;
+
+    if (!modeToPersist) {
+      return;
+    }
+
+    saveSession({
+      lastRecommendationMode: modeToPersist,
+      lastScene: modeToPersist,
+      selectedMode: modeToPersist,
+    });
+  }, [
+    isAuthenticated,
+    isFlowSessionReady,
+    restoredMode,
+    saveSession,
+    selectedMode,
+    shouldPersistFlowSession,
+    taste?.dominantCategory,
+  ]);
+
+  function selectFlowMode(mode: FlowMode) {
+    setShouldPersistFlowSession(true);
+    setSelectedMode(mode);
+    setIsResumeBadgeDismissed(true);
+  }
+
+  function resumeFlow() {
+    if (restoredMode) {
+      setSelectedMode(restoredMode);
+    }
+
+    setShouldPersistFlowSession(true);
+    setIsResumeBadgeDismissed(true);
+  }
+
+  function resetFlowSession() {
+    clearSession();
+    setSelectedMode(null);
+    setShouldPersistFlowSession(false);
+    setIsResumeBadgeDismissed(true);
+  }
 
   return (
     <main className="min-h-screen bg-black px-6 py-14 text-white">
@@ -321,13 +391,52 @@ export default function Home() {
 
       {session ? (
         <div className="flex w-full flex-col items-center gap-8">
-          <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.85fr)] lg:items-start">
+          {!isFlowSessionReady ? (
+            <p className="text-sm text-zinc-500">Restoring Flow session...</p>
+          ) : null}
+
+          {shouldShowResumeBadge && restoredMode ? (
+            <section className="w-full rounded-lg border border-green-300/20 bg-green-300/10 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-300">
+                    Resume Flow
+                  </p>
+                  <p className="mt-2 text-zinc-200">Welcome back.</p>
+                  <p className="text-sm text-zinc-400">
+                    Last mode:{" "}
+                    <span className="font-semibold uppercase text-green-300">
+                      {restoredMode}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    className="rounded-full bg-green-300 px-4 py-2 text-sm font-semibold text-black transition hover:bg-green-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-300"
+                    onClick={resumeFlow}
+                  >
+                    Resume
+                  </button>
+                  <button
+                    className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+                    onClick={resetFlowSession}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {isFlowSessionReady ? (
+            <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.85fr)] lg:items-start">
             <div className="flex flex-col gap-5">
               <section className="w-full">
                 <h3 className="mb-4 text-xl font-semibold">Flow Modes</h3>
                 <ModeButtons
                   selectedMode={activeMode}
-                  onSelectMode={setSelectedMode}
+                  onSelectMode={selectFlowMode}
                 />
               </section>
 
@@ -414,7 +523,9 @@ export default function Home() {
               </section>
             </aside>
           </div>
+          ) : null}
 
+          {isFlowSessionReady ? (
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
             <SectionState
@@ -453,6 +564,7 @@ export default function Home() {
               </div>
             ) : null}
           </section>
+          ) : null}
 
           {taste?.debug ? (
             <section className="w-full">
