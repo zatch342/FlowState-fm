@@ -38,3 +38,126 @@ body {
 .flow-scene-fade {
   animation: flow-scene-fade 300ms ease;
 }
+
+@keyframes flow-scene-ambient {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.flow-scene-ambient {
+  background:
+    radial-gradient(circle at 25% 20%, rgb(74 222 128 / 0.16), transparent 30%),
+    radial-gradient(circle at 80% 80%, rgb(56 189 248 / 0.14), transparent 34%),
+    #09090b;
+  background-size: 180% 180%;
+  animation: flow-scene-ambient 6s ease-in-out infinite;
+}
+
+.robot-avatar {
+  width: clamp(150px, 30vw, 280px);
+  aspect-ratio: 1;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: drop-shadow(0 22px 28px rgb(0 0 0 / 0.42));
+}
+
+@keyframes robot-focus {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes robot-escape {
+  0%,
+  100% {
+    transform: translateX(0) rotate(-1deg);
+  }
+
+  50% {
+    transform: translateX(10px) rotate(1deg);
+  }
+}
+
+@keyframes robot-chill {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes robot-energy {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+
+  35% {
+    transform: translateY(-18px) rotate(2deg);
+  }
+
+  70% {
+    transform: translateY(-6px) rotate(-2deg);
+  }
+}
+
+@keyframes robot-worship {
+  0%,
+  100% {
+    filter: drop-shadow(0 20px 28px rgb(0 0 0 / 0.4))
+      drop-shadow(0 0 12px rgb(250 204 21 / 0.18));
+    transform: translateY(0);
+  }
+
+  50% {
+    filter: drop-shadow(0 20px 28px rgb(0 0 0 / 0.4))
+      drop-shadow(0 0 30px rgb(250 204 21 / 0.42));
+    transform: translateY(-4px);
+  }
+}
+
+.robot-motion-focus {
+  animation: robot-focus 4s ease-in-out infinite;
+}
+
+.robot-motion-escape {
+  animation: robot-escape 6s ease-in-out infinite;
+}
+
+.robot-motion-chill {
+  animation: robot-chill 5s ease-in-out infinite;
+}
+
+.robot-motion-energy {
+  animation: robot-energy 3s ease-in-out infinite;
+}
+
+.robot-motion-worship {
+  animation: robot-worship 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-scene-ambient,
+  .flow-scene-fade,
+  .robot-avatar {
+    animation: none;
+  }
+}
