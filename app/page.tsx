@@ -43,6 +43,30 @@ type SpotifyResource<T> = {
   isLoading: boolean;
 };
 
+type TasteCategories = {
+  focus: number;
+  escape: number;
+  chill: number;
+  energy: number;
+  worship: number;
+};
+
+type TasteResponse = {
+  categories: TasteCategories;
+  dominantCategory: string;
+};
+
+const flowCategories: {
+  key: keyof TasteCategories;
+  label: string;
+}[] = [
+  { key: "focus", label: "Focus" },
+  { key: "escape", label: "Escape" },
+  { key: "chill", label: "Chill" },
+  { key: "energy", label: "Energy" },
+  { key: "worship", label: "Worship" },
+];
+
 function useSpotifyResource<T>(
   endpoint: string,
   enabled: boolean,
@@ -161,6 +185,23 @@ function SectionState({
   return null;
 }
 
+function FlowBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+        <span>{label}</span>
+        <span className="text-zinc-500">{value}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className="h-full rounded-full bg-green-400"
+          style={{ width: `${value}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { data: session, status } = useSession();
   const isLoading = status === "loading";
@@ -177,9 +218,14 @@ export default function Home() {
     "/api/spotify/top-artists",
     isAuthenticated,
   );
+  const tasteState = useSpotifyResource<TasteResponse>(
+    "/api/spotify/taste",
+    isAuthenticated,
+  );
   const profile = profileState.data;
   const topTracks = topTracksState.data?.items ?? [];
   const topArtists = topArtistsState.data?.items ?? [];
+  const taste = tasteState.data;
 
   const displayName =
     profile?.display_name ?? session?.user?.name ?? "listener";
@@ -222,6 +268,37 @@ export default function Home() {
               Country: {profile?.country ?? "Unknown"}
             </p>
           )}
+
+          <section className="w-full">
+            <h3 className="mb-4 text-xl font-semibold">Your FlowState</h3>
+            <SectionState
+              emptyText="No FlowState profile yet."
+              error={tasteState.error}
+              isEmpty={!taste}
+              isLoading={tasteState.isLoading}
+            />
+
+            {taste ? (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <p className="text-sm text-zinc-500">Current vibe:</p>
+                  <p className="text-3xl font-bold uppercase tracking-normal text-green-400">
+                    {taste.dominantCategory}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {flowCategories.map((category) => (
+                    <FlowBar
+                      key={category.key}
+                      label={category.label}
+                      value={taste.categories[category.key]}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
 
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Your Top Tracks</h3>
