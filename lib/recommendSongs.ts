@@ -3,6 +3,7 @@ import {
   getTrackTasteVector,
   type SpotifyArtistForTaste,
   type SpotifyTrackForTaste,
+  trackCategoryConfidence,
 } from "./classifyTaste";
 
 export type FlowMode = FlowCategory;
@@ -41,6 +42,15 @@ const reasonTone: Record<FlowMode, string> = {
   worship: "worship-centered taste",
 };
 
+const worshipExcludedTitleKeywords = [
+  "shit",
+  "fuck",
+  "sex",
+  "hate",
+  "kill",
+  "party",
+];
+
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -78,7 +88,11 @@ function durationSuitability(track: SpotifyTrack, mode: FlowMode): number {
   return durationMinutes >= 3 && durationMinutes <= 5 ? 100 : 60;
 }
 
-function artistAffinity(track: SpotifyTrack, artists: SpotifyArtist[], mode: FlowMode) {
+function artistAffinity(
+  track: SpotifyTrack,
+  artists: SpotifyArtist[],
+  mode: FlowMode,
+) {
   const genres = matchedGenres(track, artists);
   const matchCount = genres.reduce((count, genre) => {
     const matches = modeKeywords[mode].filter((keyword) =>
@@ -91,9 +105,51 @@ function artistAffinity(track: SpotifyTrack, artists: SpotifyArtist[], mode: Flo
   return Math.min(100, matchCount * 34);
 }
 
-function reasonFor(mode: FlowMode, vectorScore: number, affinity: number) {
+function titleHasWorshipExclusion(track: SpotifyTrack): boolean {
+  const title = track.name.toLowerCase();
+
+  return worshipExcludedTitleKeywords.some((keyword) => title.includes(keyword));
+}
+
+export function isValidRecommendation(
+  track: SpotifyTrack,
+  artists: SpotifyArtist[],
+  mode: FlowMode,
+  score?: number,
+): boolean {
+  const confidence = trackCategoryConfidence(track, artists, mode);
+
+  if (mode === "worship") {
+    return !titleHasWorshipExclusion(track) && confidence >= 60;
+  }
+
+  if (mode === "energy") {
+    return confidence >= 40;
+  }
+
+  if (mode === "focus") {
+    return (track.duration_ms ?? 0) >= 120000;
+  }
+
+  if (mode === "chill" || mode === "escape") {
+    return score === undefined ? confidence >= 35 : score >= 35;
+  }
+
+  return true;
+}
+
+function reasonFor(
+  mode: FlowMode,
+  confidence: number,
+  vectorScore: number,
+  affinity: number,
+) {
   if (affinity >= 60) {
-    return `Matches your ${mode} taste through artist style and ${reasonTone[mode]}`;
+    return `Artist genre and track signals strongly match ${mode} listening`;
+  }
+
+  if (confidence >= 60) {
+    return `Track title, genre, and duration strongly match ${mode} listening`;
   }
 
   if (vectorScore >= 55) {
@@ -113,11 +169,13 @@ function scoreTrack(
   const popularity = track.popularity ?? 50;
   const duration = durationSuitability(track, mode);
   const affinity = artistAffinity(track, artists, mode);
+  const confidence = trackCategoryConfidence(track, artists, mode);
+  const popularityScore = mode === "focus" ? 100 - popularity : popularity;
 
   return {
-    reason: reasonFor(mode, categoryMatch, affinity),
+    reason: reasonFor(mode, confidence, categoryMatch, affinity),
     score: clampScore(
-      categoryMatch * 0.4 + popularity * 0.3 + duration * 0.2 + affinity * 0.1,
+      confidence * 0.4 + popularityScore * 0.3 + duration * 0.2 + affinity * 0.1,
     ),
   };
 }
@@ -128,6 +186,7 @@ export function recommendSongs(
   mode: FlowMode,
 ): RecommendedSong[] {
   return tracks
+    .filter((track) => isValidRecommendation(track, artists, mode))
     .map((track) => {
       const artist = (track.artists ?? [])
         .map((trackArtist) => trackArtist.name)
@@ -138,9 +197,18 @@ export function recommendSongs(
         title: track.name,
         artist: artist || "Unknown artist",
         image: track.album?.images?.[0]?.url,
+        track,
         ...recommendation,
       };
     })
+    .filter((song) => isValidRecommendation(song.track, artists, mode, song.score))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, 10)
+    .map((song) => ({
+      artist: song.artist,
+      image: song.image,
+      reason: song.reason,
+      score: song.score,
+      title: song.title,
+    }));
 }

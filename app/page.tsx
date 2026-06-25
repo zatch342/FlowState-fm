@@ -368,7 +368,7 @@ export default function Home() {
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
             <SectionState
-              emptyText="No recommendations yet."
+              emptyText="No strong matches found. Try another Flow Mode."
               error={recommendationState.error}
               isEmpty={recommendedSongs.length === 0}
               isLoading={recommendationState.isLoading}

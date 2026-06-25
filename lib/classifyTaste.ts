@@ -43,6 +43,34 @@ const keywordWeights: Record<FlowCategory, string[]> = {
   worship: ["worship", "gospel", "christian", "praise"],
 };
 
+const titleKeywords: Record<FlowCategory, string[]> = {
+  focus: ["study", "focus", "instrumental", "ambient", "lofi"],
+  escape: ["dream", "night", "memory", "escape"],
+  chill: ["slow", "easy", "calm", "quiet", "soft"],
+  energy: ["party", "dance", "run", "move", "up"],
+  worship: [
+    "god",
+    "jesus",
+    "lord",
+    "grace",
+    "hallelujah",
+    "church",
+    "holy",
+    "worship",
+    "praise",
+    "faith",
+  ],
+};
+
+const worshipExcludedTitleKeywords = [
+  "shit",
+  "fuck",
+  "sex",
+  "hate",
+  "kill",
+  "party",
+];
+
 function createScores(value = 0): Record<FlowCategory, number> {
   return {
     focus: value,
@@ -97,6 +125,45 @@ function matchedArtistGenres(
     .map((genre) => genre.toLowerCase());
 }
 
+function keywordMatchRatio(text: string, keywords: string[]): number {
+  const matches = keywords.filter((keyword) => text.includes(keyword)).length;
+
+  return Math.min(1, matches / 2);
+}
+
+function durationConfidence(
+  track: SpotifyTrackForTaste,
+  category: FlowCategory,
+): number {
+  const durationMinutes = (track.duration_ms ?? 210000) / 60000;
+
+  if (category === "focus") {
+    if (durationMinutes >= 4) {
+      return 100;
+    }
+
+    return durationMinutes >= 3 ? 70 : 25;
+  }
+
+  if (category === "escape") {
+    if (durationMinutes >= 4.5) {
+      return 100;
+    }
+
+    return durationMinutes >= 3.5 ? 75 : 35;
+  }
+
+  if (category === "chill") {
+    return durationMinutes >= 2.5 && durationMinutes <= 4.5 ? 100 : 45;
+  }
+
+  if (category === "energy") {
+    return durationMinutes > 0 && durationMinutes <= 3.5 ? 100 : 45;
+  }
+
+  return durationMinutes >= 3 && durationMinutes <= 5 ? 100 : 45;
+}
+
 function scoreKeywords(
   scores: Record<FlowCategory, number>,
   searchableText: string,
@@ -108,6 +175,28 @@ function scoreKeywords(
       }
     }
   }
+}
+
+export function trackCategoryConfidence(
+  track: SpotifyTrackForTaste,
+  artists: SpotifyArtistForTaste[] = [],
+  mode: FlowCategory,
+): number {
+  const title = track.name.toLowerCase();
+
+  if (
+    mode === "worship" &&
+    worshipExcludedTitleKeywords.some((keyword) => title.includes(keyword))
+  ) {
+    return 0;
+  }
+
+  const genres = matchedArtistGenres(track, artists).join(" ");
+  const genreScore = keywordMatchRatio(genres, keywordWeights[mode]) * 50;
+  const titleScore = keywordMatchRatio(title, titleKeywords[mode]) * 30;
+  const durationScore = (durationConfidence(track, mode) / 100) * 20;
+
+  return Math.round(genreScore + titleScore + durationScore);
 }
 
 export function getTrackTasteVector(
@@ -122,6 +211,10 @@ export function getTrackTasteVector(
   const searchableText = [track.name, ...genres].join(" ").toLowerCase();
 
   scoreKeywords(scores, searchableText);
+
+  for (const category of categories) {
+    scores[category] += trackCategoryConfidence(track, artists, category) * 0.45;
+  }
 
   scores.energy += popularity * 0.22;
   scores.focus += (100 - popularity) * 0.12;
