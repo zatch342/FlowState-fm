@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
+import FlowScene from "@/components/FlowScene";
+
 type SpotifyProfile = {
   country?: string;
   display_name?: string;
@@ -364,6 +366,8 @@ export default function Home() {
               onSelectMode={setSelectedMode}
             />
           </section>
+
+          <FlowScene mode={activeMode} />
 
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
