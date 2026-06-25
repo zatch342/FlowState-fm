@@ -51,13 +51,25 @@ type TasteCategories = {
   worship: number;
 };
 
+type FlowMode = keyof TasteCategories;
+
 type TasteResponse = {
   categories: TasteCategories;
-  dominantCategory: string;
+  dominantCategory: FlowMode;
+};
+
+type RecommendationResponse = {
+  mode: FlowMode;
+  songs: {
+    artist: string;
+    image?: string;
+    score: number;
+    title: string;
+  }[];
 };
 
 const flowCategories: {
-  key: keyof TasteCategories;
+  key: FlowMode;
   label: string;
 }[] = [
   { key: "focus", label: "Focus" },
@@ -185,6 +197,36 @@ function SectionState({
   return null;
 }
 
+function ModeButtons({
+  selectedMode,
+  onSelectMode,
+}: {
+  selectedMode: FlowMode;
+  onSelectMode: (mode: FlowMode) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {flowCategories.map((category) => {
+        const isSelected = selectedMode === category.key;
+
+        return (
+          <button
+            key={category.key}
+            onClick={() => onSelectMode(category.key)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              isSelected
+                ? "bg-green-400 text-black"
+                : "border border-zinc-700 text-zinc-300 hover:bg-zinc-900"
+            }`}
+          >
+            {category.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FlowBar({ label, value }: { label: string; value: number }) {
   return (
     <div>
@@ -206,6 +248,7 @@ export default function Home() {
   const { data: session, status } = useSession();
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
+  const [selectedMode, setSelectedMode] = useState<FlowMode | null>(null);
   const profileState = useSpotifyResource<SpotifyProfile>(
     "/api/spotify/me",
     isAuthenticated,
@@ -226,6 +269,12 @@ export default function Home() {
   const topTracks = topTracksState.data?.items ?? [];
   const topArtists = topArtistsState.data?.items ?? [];
   const taste = tasteState.data;
+  const activeMode = selectedMode ?? taste?.dominantCategory ?? "focus";
+  const recommendationState = useSpotifyResource<RecommendationResponse>(
+    `/api/spotify/recommend?mode=${activeMode}`,
+    isAuthenticated,
+  );
+  const recommendedSongs = recommendationState.data?.songs ?? [];
 
   const displayName =
     profile?.display_name ?? session?.user?.name ?? "listener";
@@ -296,6 +345,50 @@ export default function Home() {
                     />
                   ))}
                 </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="w-full">
+            <h3 className="mb-4 text-xl font-semibold">Flow Modes</h3>
+            <ModeButtons
+              selectedMode={activeMode}
+              onSelectMode={setSelectedMode}
+            />
+          </section>
+
+          <section className="w-full">
+            <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
+            <SectionState
+              emptyText="No recommendations yet."
+              error={recommendationState.error}
+              isEmpty={recommendedSongs.length === 0}
+              isLoading={recommendationState.isLoading}
+            />
+
+            {recommendedSongs.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {recommendedSongs.map((song) => (
+                  <div
+                    key={`${song.title}-${song.artist}`}
+                    className="flex items-center gap-4"
+                  >
+                    <ImageBubble
+                      label={`${song.title} cover`}
+                      size="sm"
+                      url={song.image}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{song.title}</p>
+                      <p className="truncate text-sm text-zinc-400">
+                        {song.artist}
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold text-green-400">
+                      {song.score}
+                    </p>
+                  </div>
+                ))}
               </div>
             ) : null}
           </section>
