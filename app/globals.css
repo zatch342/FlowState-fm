@@ -62,13 +62,187 @@ body {
   animation: flow-scene-ambient 6s ease-in-out infinite;
 }
 
+.flow-scene {
+  --robot-glow: rgb(74 222 128 / 0.2);
+  --robot-glow-strong: rgb(74 222 128 / 0.34);
+  --scene-particle: rgb(255 255 255 / 0.26);
+  position: relative;
+}
+
+.flow-scene-focus {
+  --robot-glow: rgb(252 211 77 / 0.2);
+  --robot-glow-strong: rgb(252 211 77 / 0.38);
+  --scene-particle: rgb(253 230 138 / 0.3);
+}
+
+.flow-scene-escape {
+  --robot-glow: rgb(96 165 250 / 0.22);
+  --robot-glow-strong: rgb(96 165 250 / 0.36);
+  --scene-particle: rgb(191 219 254 / 0.22);
+}
+
+.flow-scene-chill {
+  --robot-glow: rgb(187 247 208 / 0.18);
+  --robot-glow-strong: rgb(187 247 208 / 0.3);
+  --scene-particle: rgb(220 252 231 / 0.18);
+}
+
+.flow-scene-energy {
+  --robot-glow: rgb(132 204 22 / 0.24);
+  --robot-glow-strong: rgb(132 204 22 / 0.46);
+  --scene-particle: rgb(163 230 53 / 0.28);
+}
+
+.flow-scene-worship {
+  --robot-glow: rgb(251 191 36 / 0.2);
+  --robot-glow-strong: rgb(251 191 36 / 0.42);
+  --scene-particle: rgb(254 243 199 / 0.24);
+}
+
+.scene-atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scene-atmosphere::before,
+.scene-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.flow-scene-focus .scene-atmosphere::before {
+  background:
+    radial-gradient(circle at 22% 16%, rgb(253 186 116 / 0.2), transparent 18%),
+    radial-gradient(circle at 30% 35%, rgb(251 191 36 / 0.12), transparent 28%);
+  animation: focus-lamp-glow 5s ease-in-out infinite;
+}
+
+.flow-scene-focus .scene-atmosphere::after {
+  background-image:
+    radial-gradient(circle, var(--scene-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgb(255 255 255 / 0.16) 0 1px, transparent 1.5px);
+  background-position:
+    12% 32%,
+    72% 42%;
+  background-size:
+    88px 96px,
+    130px 120px;
+  animation: scene-dust 6s linear infinite;
+}
+
+.flow-scene-escape .scene-atmosphere::before {
+  inset: 28% -20% 0;
+  background:
+    radial-gradient(ellipse at 25% 50%, rgb(147 197 253 / 0.18), transparent 46%),
+    radial-gradient(ellipse at 70% 58%, rgb(255 255 255 / 0.12), transparent 42%);
+  filter: blur(16px);
+  animation: scene-mist 6s ease-in-out infinite;
+}
+
+.flow-scene-escape .scene-atmosphere::after {
+  background: linear-gradient(115deg, transparent 20%, rgb(59 130 246 / 0.1), transparent 52%);
+  animation: scene-slow-drift 6s ease-in-out infinite;
+}
+
+.flow-scene-chill .scene-atmosphere::before {
+  background:
+    radial-gradient(circle at 30% 74%, rgb(187 247 208 / 0.13), transparent 28%),
+    radial-gradient(circle at 78% 30%, rgb(255 255 255 / 0.08), transparent 22%);
+  animation: chill-breathe 5s ease-in-out infinite;
+}
+
+.flow-scene-chill .scene-atmosphere::after {
+  background-image: radial-gradient(circle, var(--scene-particle) 0 1px, transparent 1.5px);
+  background-size: 120px 120px;
+  animation: scene-dust 6s linear infinite reverse;
+}
+
+.flow-scene-energy .scene-atmosphere::before {
+  background:
+    linear-gradient(105deg, transparent 22%, rgb(132 204 22 / 0.16), transparent 42%),
+    linear-gradient(255deg, transparent 30%, rgb(59 130 246 / 0.12), transparent 56%);
+  animation: energy-pulse 3s ease-in-out infinite;
+}
+
+.flow-scene-energy .scene-atmosphere::after {
+  background-image:
+    radial-gradient(circle at 28% 35%, rgb(132 204 22 / 0.34), transparent 4%),
+    radial-gradient(circle at 75% 48%, rgb(59 130 246 / 0.3), transparent 4%);
+  animation: energy-light-hop 4s ease-in-out infinite;
+}
+
+.flow-scene-worship .scene-atmosphere::before {
+  background:
+    linear-gradient(100deg, transparent 26%, rgb(254 243 199 / 0.16), transparent 43%),
+    linear-gradient(78deg, transparent 45%, rgb(251 191 36 / 0.12), transparent 60%);
+  animation: worship-rays 6s ease-in-out infinite;
+}
+
+.flow-scene-worship .scene-atmosphere::after {
+  background-image:
+    radial-gradient(circle, var(--scene-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgb(251 191 36 / 0.18) 0 1px, transparent 1.5px);
+  background-position:
+    20% 46%,
+    78% 30%;
+  background-size:
+    110px 130px,
+    150px 150px;
+  animation: worship-particles 6s ease-in-out infinite;
+}
+
+.robot-stage {
+  position: relative;
+  width: clamp(170px, 31vw, 300px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  transform: translateY(18px) perspective(760px) rotateX(2deg);
+}
+
+.robot-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  width: 62%;
+  height: 14%;
+  background: radial-gradient(ellipse, rgb(0 0 0 / 0.46), transparent 68%);
+  filter: blur(8px);
+  transform: translateX(-50%) scaleX(1.08);
+}
+
+.robot-stage::after {
+  content: "";
+  position: absolute;
+  inset: 16% 12% 14%;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--robot-glow-strong), transparent 68%);
+  filter: blur(20px);
+  opacity: 0.88;
+}
+
 .robot-avatar {
-  width: clamp(150px, 30vw, 280px);
+  position: relative;
+  z-index: 1;
+  width: 92%;
   aspect-ratio: 1;
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
-  filter: drop-shadow(0 22px 28px rgb(0 0 0 / 0.42));
+  filter: drop-shadow(0 18px 20px rgb(0 0 0 / 0.36))
+    drop-shadow(0 0 20px var(--robot-glow));
+  transform-origin: 50% 78%;
+}
+
+.robot-avatar-energy {
+  filter: drop-shadow(0 18px 20px rgb(0 0 0 / 0.38))
+    drop-shadow(0 0 28px var(--robot-glow));
 }
 
 @keyframes robot-focus {
@@ -119,6 +293,114 @@ body {
   }
 }
 
+@keyframes focus-lamp-glow {
+  0%,
+  100% {
+    opacity: 0.34;
+  }
+
+  50% {
+    opacity: 0.52;
+  }
+}
+
+@keyframes scene-dust {
+  from {
+    transform: translate3d(0, 8px, 0);
+  }
+
+  to {
+    transform: translate3d(18px, -16px, 0);
+  }
+}
+
+@keyframes scene-mist {
+  0%,
+  100% {
+    transform: translateX(-3%);
+  }
+
+  50% {
+    transform: translateX(5%);
+  }
+}
+
+@keyframes scene-slow-drift {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: translateX(-4%);
+  }
+
+  50% {
+    opacity: 0.32;
+    transform: translateX(4%);
+  }
+}
+
+@keyframes chill-breathe {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes energy-pulse {
+  0%,
+  100% {
+    opacity: 0.24;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes energy-light-hop {
+  0%,
+  100% {
+    opacity: 0.26;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 0.48;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes worship-rays {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: translateX(-2%);
+  }
+
+  50% {
+    opacity: 0.44;
+    transform: translateX(2%);
+  }
+}
+
+@keyframes worship-particles {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: translateY(8px);
+  }
+
+  50% {
+    opacity: 0.42;
+    transform: translateY(-10px);
+  }
+}
+
 @keyframes robot-worship {
   0%,
   100% {
@@ -157,7 +439,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .flow-scene-ambient,
   .flow-scene-fade,
-  .robot-avatar {
+  .robot-avatar,
+  .scene-atmosphere::before,
+  .scene-atmosphere::after {
     animation: none;
   }
 }

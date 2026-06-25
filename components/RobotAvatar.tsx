@@ -22,11 +22,13 @@ const motionByMode: Record<SceneMode, string> = {
 
 export default function RobotAvatar({ mode }: RobotAvatarProps) {
   return (
-    <div
-      aria-label={`${mode} robot avatar`}
-      className={`robot-avatar ${motionByMode[mode]}`}
-      role="img"
-      style={{ backgroundImage: `url(${robotByMode[mode]})` }}
-    />
+    <div className={`robot-stage robot-stage-${mode}`}>
+      <div
+        aria-label={`${mode} robot avatar`}
+        className={`robot-avatar robot-avatar-${mode} ${motionByMode[mode]}`}
+        role="img"
+        style={{ backgroundImage: `url(${robotByMode[mode]})` }}
+      />
+    </div>
   );
 }

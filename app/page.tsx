@@ -79,15 +79,27 @@ type RecommendationResponse = {
 };
 
 const flowCategories: {
+  icon: string;
   key: FlowMode;
   label: string;
 }[] = [
-  { key: "focus", label: "Focus" },
-  { key: "escape", label: "Escape" },
-  { key: "chill", label: "Chill" },
-  { key: "energy", label: "Energy" },
-  { key: "worship", label: "Worship" },
+  { icon: "🎯", key: "focus", label: "Focus" },
+  { icon: "🌊", key: "escape", label: "Escape" },
+  { icon: "🌙", key: "chill", label: "Chill" },
+  { icon: "⚡", key: "energy", label: "Energy" },
+  { icon: "✝", key: "worship", label: "Worship" },
 ];
+
+const robotMessages: Record<FlowMode, string> = {
+  focus:
+    "I’ll keep the atmosphere calm and prioritize tracks that support deep work.",
+  escape:
+    "You seem like you need distance from the noise. I’ll shape the room softer.",
+  chill:
+    "Let’s slow everything down and make the music easier to breathe with.",
+  energy: "I’ll raise the intensity and bring forward songs with more drive.",
+  worship: "I’ll keep this space peaceful and centered on worship.",
+};
 
 function useSpotifyResource<T>(
   endpoint: string,
@@ -215,20 +227,25 @@ function ModeButtons({
   onSelectMode: (mode: FlowMode) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
       {flowCategories.map((category) => {
         const isSelected = selectedMode === category.key;
 
         return (
           <button
             key={category.key}
+            aria-label={`Select ${category.label} mode`}
+            aria-pressed={isSelected}
             onClick={() => onSelectMode(category.key)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            className={`rounded-full border px-4 py-2.5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-300 ${
               isSelected
-                ? "bg-green-400 text-black"
-                : "border border-zinc-700 text-zinc-300 hover:bg-zinc-900"
+                ? "border-green-300 bg-green-300 text-black shadow-[0_0_28px_rgba(74,222,128,0.18)]"
+                : "border-zinc-800 bg-zinc-950/80 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900 hover:text-white"
             }`}
           >
+            <span aria-hidden="true" className="mr-2">
+              {category.icon}
+            </span>
             {category.label}
           </button>
         );
@@ -242,7 +259,6 @@ function FlowBar({ label, value }: { label: string; value: number }) {
     <div>
       <div className="mb-2 flex items-center justify-between gap-4 text-sm">
         <span>{label}</span>
-        <span className="text-zinc-500">{value}%</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
         <div
@@ -293,7 +309,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-black px-6 py-14 text-white">
-      <div className="mx-auto flex max-w-3xl flex-col items-center">
+      <div className="mx-auto flex max-w-6xl flex-col items-center">
 
       <h1 className="text-6xl font-bold mb-4">
         FlowState.fm
@@ -305,69 +321,99 @@ export default function Home() {
 
       {session ? (
         <div className="flex w-full flex-col items-center gap-8">
-          <ImageBubble
-            label={`${displayName} Spotify profile`}
-            size="lg"
-            url={profileImage}
-          />
+          <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.85fr)] lg:items-start">
+            <div className="flex flex-col gap-5">
+              <section className="w-full">
+                <h3 className="mb-4 text-xl font-semibold">Flow Modes</h3>
+                <ModeButtons
+                  selectedMode={activeMode}
+                  onSelectMode={setSelectedMode}
+                />
+              </section>
 
-          <div className="text-center">
-            <h2 className="text-2xl font-semibold">Hi {displayName} 👋</h2>
-            <p className="mt-2 text-green-400 font-medium">
-              Connected to Spotify
-            </p>
-          </div>
+              <FlowScene mode={activeMode} />
 
-          {profileState.isLoading ? (
-            <p className="text-sm text-zinc-500">Loading Spotify profile...</p>
-          ) : profileState.error ? (
-            <p className="text-sm text-red-400">{profileState.error}</p>
-          ) : (
-            <p className="text-zinc-400">
-              Country: {profile?.country ?? "Unknown"}
-            </p>
-          )}
+              <section className="rounded-lg border border-zinc-800 bg-zinc-950/85 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-green-300/30 bg-green-300/10 text-lg">
+                    {
+                      flowCategories.find(
+                        (category) => category.key === activeMode,
+                      )?.icon
+                    }
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-green-300">
+                      Robot note
+                    </p>
+                    <p className="mt-2 text-zinc-300">
+                      {robotMessages[activeMode]}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </div>
 
-          <section className="w-full">
-            <h3 className="mb-4 text-xl font-semibold">Your FlowState</h3>
-            <SectionState
-              emptyText="No FlowState profile yet."
-              error={tasteState.error}
-              isEmpty={!taste}
-              isLoading={tasteState.isLoading}
-            />
+            <aside className="flex w-full flex-col gap-6 rounded-lg border border-zinc-900 bg-zinc-950/45 p-5">
+              <div className="flex items-center gap-4">
+                <ImageBubble
+                  label={`${displayName} Spotify profile`}
+                  size="lg"
+                  url={profileImage}
+                />
 
-            {taste ? (
-              <div className="flex flex-col gap-5">
                 <div>
-                  <p className="text-sm text-zinc-500">Current vibe:</p>
-                  <p className="text-3xl font-bold uppercase tracking-normal text-green-400">
-                    {taste.dominantCategory}
+                  <h2 className="text-2xl font-semibold">Hi {displayName} 👋</h2>
+                  <p className="mt-2 font-medium text-green-400">
+                    Connected to Spotify
                   </p>
                 </div>
-
-                <div className="flex flex-col gap-4">
-                  {flowCategories.map((category) => (
-                    <FlowBar
-                      key={category.key}
-                      label={category.label}
-                      value={taste.categories[category.key]}
-                    />
-                  ))}
-                </div>
               </div>
-            ) : null}
-          </section>
 
-          <section className="w-full">
-            <h3 className="mb-4 text-xl font-semibold">Flow Modes</h3>
-            <ModeButtons
-              selectedMode={activeMode}
-              onSelectMode={setSelectedMode}
-            />
-          </section>
+              {profileState.isLoading ? (
+                <p className="text-sm text-zinc-500">
+                  Loading Spotify profile...
+                </p>
+              ) : profileState.error ? (
+                <p className="text-sm text-red-400">{profileState.error}</p>
+              ) : (
+                <p className="text-zinc-400">
+                  Country: {profile?.country ?? "Unknown"}
+                </p>
+              )}
 
-          <FlowScene mode={activeMode} />
+              <section className="w-full">
+                <h3 className="mb-4 text-xl font-semibold">Flow Profile</h3>
+                <SectionState
+                  emptyText="No FlowState profile yet."
+                  error={tasteState.error}
+                  isEmpty={!taste}
+                  isLoading={tasteState.isLoading}
+                />
+
+                {taste ? (
+                  <div className="flex flex-col gap-5">
+                    <div>
+                      <p className="text-sm text-zinc-500">Current vibe</p>
+                      <p className="text-3xl font-bold uppercase tracking-normal text-green-400">
+                        {taste.dominantCategory}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      {flowCategories.map((category) => (
+                        <FlowBar
+                          key={category.key}
+                          label={category.label}
+                          value={taste.categories[category.key]}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            </aside>
+          </div>
 
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
