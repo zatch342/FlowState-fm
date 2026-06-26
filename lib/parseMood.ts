@@ -8,6 +8,7 @@ export type MoodParseResult = {
 };
 
 type WeightedKeyword = {
+  exactMode?: boolean;
   term: string;
   weight: number;
 };
@@ -22,63 +23,71 @@ const modes: FlowCategory[] = [
 
 const moodKeywords: Record<FlowCategory, WeightedKeyword[]> = {
   focus: [
+    { term: "focus", weight: 7, exactMode: true },
     { term: "deep work", weight: 4 },
     { term: "need to focus", weight: 4 },
     { term: "lock in", weight: 3 },
-    { term: "concentrate", weight: 3 },
+    { term: "focused", weight: 5 },
+    { term: "concentrate", weight: 5 },
     { term: "productive", weight: 3 },
     { term: "coding", weight: 3 },
-    { term: "study", weight: 2 },
+    { term: "study", weight: 5 },
     { term: "work", weight: 2 },
     { term: "exam", weight: 2 },
     { term: "read", weight: 2 },
-    { term: "focus", weight: 2 },
   ],
   escape: [
+    { term: "escape", weight: 7, exactMode: true },
     { term: "tired of everything", weight: 5 },
-    { term: "need a break", weight: 4 },
+    { term: "need a break", weight: 6 },
     { term: "burned out", weight: 4 },
     { term: "burnt out", weight: 4 },
-    { term: "overwhelmed", weight: 4 },
-    { term: "stressed", weight: 3 },
+    { term: "overwhelmed", weight: 5 },
+    { term: "stressed", weight: 5 },
     { term: "burnout", weight: 3 },
-    { term: "escape", weight: 3 },
     { term: "pressure", weight: 2 },
+    { term: "i wanna escape", weight: 5 },
   ],
   chill: [
+    { term: "chill", weight: 7, exactMode: true },
     { term: "slow down", weight: 4 },
-    { term: "exhausted", weight: 3 },
-    { term: "drained", weight: 3 },
+    { term: "chilled", weight: 5 },
+    { term: "exhausted", weight: 5 },
+    { term: "drained", weight: 5 },
     { term: "peaceful", weight: 3 },
-    { term: "relax", weight: 3 },
+    { term: "relaxed", weight: 5 },
+    { term: "relax", weight: 5 },
+    { term: "I wanna chill", weight: 4 },
     { term: "sleepy", weight: 2 },
-    { term: "tired", weight: 2 },
-    { term: "calm", weight: 2 },
+    { term: "tired", weight: 5 },
+    { term: "calm", weight: 5 },
     { term: "quiet", weight: 2 },
   ],
   energy: [
+    { term: "energy", weight: 7, exactMode: true },
     { term: "wake up", weight: 4 },
-    { term: "workout", weight: 3 },
-    { term: "motivated", weight: 3 },
-    { term: "energetic", weight: 3 },
+    { term: "I want energy", weight: 4 },
+    { term: "workout", weight: 5 },
+    { term: "motivated", weight: 5 },
+    { term: "energetic", weight: 5 },
     { term: "power", weight: 3 },
     { term: "dance", weight: 3 },
-    { term: "gym", weight: 2 },
-    { term: "hype", weight: 2 },
+    { term: "gym", weight: 5 },
+    { term: "hype", weight: 5 },
     { term: "run", weight: 2 },
   ],
   worship: [
+    { term: "worship", weight: 8, exactMode: true },
     { term: "holy spirit", weight: 5 },
     { term: "read the bible", weight: 5 },
-    { term: "worship", weight: 5 },
-    { term: "prayer", weight: 5 },
-    { term: "jesus", weight: 5 },
-    { term: "praise", weight: 4 },
+    { term: "prayer", weight: 7 },
+    { term: "jesus", weight: 7 },
+    { term: "praise", weight: 6 },
     { term: "church", weight: 4 },
-    { term: "bible", weight: 4 },
-    { term: "pray", weight: 4 },
+    { term: "bible", weight: 6 },
+    { term: "pray", weight: 7 },
     { term: "faith", weight: 4 },
-    { term: "god", weight: 4 },
+    { term: "god", weight: 7 },
   ],
 };
 
@@ -116,19 +125,37 @@ export function parseMood(transcript: string): MoodParseResult {
   const scores = modes.reduce(
     (result, mode) => {
       result[mode] = {
+        hasExactModeMatch: false,
+        hasPhraseMatch: false,
         matchedKeywords: [],
         score: 0,
       };
 
       return result;
     },
-    {} as Record<FlowCategory, { matchedKeywords: string[]; score: number }>,
+    {} as Record<
+      FlowCategory,
+      {
+        hasExactModeMatch: boolean;
+        hasPhraseMatch: boolean;
+        matchedKeywords: string[];
+        score: number;
+      }
+    >,
   );
 
   modes.forEach((mode) => {
     moodKeywords[mode].forEach((keyword) => {
       if (keywordMatches(normalizedTranscript, keyword.term)) {
-        scores[mode].score += keyword.weight;
+        const normalizedTerm = normalizeTranscript(keyword.term);
+        const isPhrase = normalizedTerm.includes(" ");
+
+        scores[mode].score += keyword.weight + (isPhrase ? 1 : 0);
+        scores[mode].hasExactModeMatch =
+          scores[mode].hasExactModeMatch ||
+          Boolean(keyword.exactMode && normalizedTranscript === normalizedTerm);
+        scores[mode].hasPhraseMatch =
+          scores[mode].hasPhraseMatch || isPhrase;
         scores[mode].matchedKeywords.push(keyword.term);
       }
     });
@@ -143,11 +170,19 @@ export function parseMood(transcript: string): MoodParseResult {
   const secondScore = scores[secondMode].score;
   const matchedKeywords = scores[topMode].matchedKeywords;
   const worshipClearlyMatched =
-    topMode !== "worship" || scores.worship.score >= 4;
-  const hasEnoughScore = topScore >= 2 && topScore - secondScore >= 1;
-  const confidence = topScore > 0 ? Math.min(0.98, topScore / (topScore + 3)) : 0;
+    topMode !== "worship" || scores.worship.score >= 6;
+  const hasMeaningfulMatch = topScore > 0;
+  const hasClearWinner = topScore > secondScore || scores[topMode].hasExactModeMatch;
+  const confidence = scores[topMode].hasExactModeMatch
+    ? 0.95
+    : Math.min(
+        0.92,
+        0.55 +
+          topScore * 0.04 +
+          (scores[topMode].hasPhraseMatch ? 0.08 : 0),
+      );
 
-  if (!hasEnoughScore || confidence < 0.4 || !worshipClearlyMatched) {
+  if (!hasMeaningfulMatch || !hasClearWinner || !worshipClearlyMatched) {
     return {
       mode: null,
       confidence,
@@ -162,4 +197,22 @@ export function parseMood(transcript: string): MoodParseResult {
     detectedMood: normalizedTranscript,
     matchedKeywords,
   };
+}
+
+export const parseMoodDebugExamples = [
+  { expectedMode: "chill", transcript: "chill" },
+  { expectedMode: "chill", transcript: "I feel chill" },
+  { expectedMode: "chill", transcript: "I am tired" },
+  { expectedMode: "focus", transcript: "focus" },
+  { expectedMode: "focus", transcript: "I need to study" },
+  { expectedMode: "escape", transcript: "I am stressed" },
+  { expectedMode: "energy", transcript: "I need energy" },
+  { expectedMode: "worship", transcript: "I want to worship" },
+] as const;
+
+export function getParseMoodDebugResults() {
+  return parseMoodDebugExamples.map((example) => ({
+    ...example,
+    result: parseMood(example.transcript),
+  }));
 }

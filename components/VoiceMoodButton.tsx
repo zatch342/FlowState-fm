@@ -58,6 +58,10 @@ export default function VoiceMoodButton({
         >
           Voice unavailable
         </button>
+        <p className="text-sm text-zinc-400">
+          Voice mood works best in Google Chrome. This browser does not fully
+          support speech recognition yet.
+        </p>
       </div>
     );
   }
