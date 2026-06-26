@@ -4,14 +4,6 @@ type RobotAvatarProps = {
   mode: SceneMode;
 };
 
-const robotByMode: Record<SceneMode, string> = {
-  focus: "/robot/study.png",
-  escape: "/robot/window.png",
-  chill: "/robot/idle.png",
-  energy: "/robot/dance.png",
-  worship: "/robot/reflect.png",
-};
-
 const motionByMode: Record<SceneMode, string> = {
   focus: "robot-motion-focus",
   escape: "robot-motion-escape",
@@ -27,8 +19,18 @@ export default function RobotAvatar({ mode }: RobotAvatarProps) {
         aria-label={`${mode} robot avatar`}
         className={`robot-avatar robot-avatar-${mode} ${motionByMode[mode]}`}
         role="img"
-        style={{ backgroundImage: `url(${robotByMode[mode]})` }}
-      />
+      >
+        <span className="robot-avatar-core" aria-hidden="true" />
+        <span className="robot-avatar-visor" aria-hidden="true" />
+        <span
+          className="robot-avatar-orbit robot-avatar-orbit-left"
+          aria-hidden="true"
+        />
+        <span
+          className="robot-avatar-orbit robot-avatar-orbit-right"
+          aria-hidden="true"
+        />
+      </div>
     </div>
   );
 }
