@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 import FlowScene from "@/components/FlowScene";
+import VoiceMoodButton from "@/components/VoiceMoodButton";
 import { useFlowSession } from "@/hooks/useFlowSession";
+import type { MoodParseResult } from "@/lib/parseMood";
 
 type SpotifyProfile = {
   country?: string;
@@ -100,6 +102,19 @@ const robotMessages: Record<FlowMode, string> = {
     "Let’s slow everything down and make the music easier to breathe with.",
   energy: "I’ll raise the intensity and bring forward songs with more drive.",
   worship: "I’ll keep this space peaceful and centered on worship.",
+};
+
+const voiceRobotMessages: Record<FlowMode, string> = {
+  focus:
+    "You sound ready to lock in. I’ll keep the atmosphere steady and support deep work.",
+  escape:
+    "You sound like you need some distance from the noise. I’ll soften the space.",
+  chill:
+    "You sound drained. Let’s slow the room down and make the music easier to breathe with.",
+  energy:
+    "You sound ready for movement. I’ll raise the intensity and keep the momentum alive.",
+  worship:
+    "You sound like you want to center your heart. I’ll keep this space peaceful and worshipful.",
 };
 
 function useSpotifyResource<T>(
@@ -276,6 +291,12 @@ export default function Home() {
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated";
   const [selectedMode, setSelectedMode] = useState<FlowMode | null>(null);
+  const [selectedModeSource, setSelectedModeSource] = useState<
+    "manual" | "voice" | null
+  >(null);
+  const [lastVoiceMoodInput, setLastVoiceMoodInput] = useState<string | null>(
+    null,
+  );
   const [isResumeBadgeDismissed, setIsResumeBadgeDismissed] = useState(false);
   const [shouldPersistFlowSession, setShouldPersistFlowSession] =
     useState(true);
@@ -324,6 +345,10 @@ export default function Home() {
     profile?.display_name ?? session?.user?.name ?? "listener";
   const profileImage =
     profile?.images?.[0]?.url ?? session?.user?.image ?? undefined;
+  const robotMessage =
+    selectedModeSource === "voice" && selectedMode === activeMode
+      ? voiceRobotMessages[activeMode]
+      : robotMessages[activeMode];
 
   useEffect(() => {
     if (
@@ -341,6 +366,9 @@ export default function Home() {
     }
 
     saveSession({
+      ...(selectedModeSource === "voice" && lastVoiceMoodInput
+        ? { lastMoodInput: lastVoiceMoodInput }
+        : {}),
       lastRecommendationMode: modeToPersist,
       lastScene: modeToPersist,
       selectedMode: modeToPersist,
@@ -351,15 +379,30 @@ export default function Home() {
     restoredMode,
     saveSession,
     selectedMode,
+    selectedModeSource,
     shouldPersistFlowSession,
+    lastVoiceMoodInput,
     taste?.dominantCategory,
   ]);
 
   function selectFlowMode(mode: FlowMode) {
     setShouldPersistFlowSession(true);
     setSelectedMode(mode);
+    setSelectedModeSource("manual");
     setIsResumeBadgeDismissed(true);
   }
+
+  const selectVoiceMood = useCallback((result: MoodParseResult) => {
+    if (!result.mode) {
+      return;
+    }
+
+    setShouldPersistFlowSession(true);
+    setSelectedMode(result.mode);
+    setSelectedModeSource("voice");
+    setLastVoiceMoodInput(result.detectedMood);
+    setIsResumeBadgeDismissed(true);
+  }, []);
 
   function resumeFlow() {
     if (restoredMode) {
@@ -367,12 +410,15 @@ export default function Home() {
     }
 
     setShouldPersistFlowSession(true);
+    setSelectedModeSource(null);
     setIsResumeBadgeDismissed(true);
   }
 
   function resetFlowSession() {
     clearSession();
     setSelectedMode(null);
+    setSelectedModeSource(null);
+    setLastVoiceMoodInput(null);
     setShouldPersistFlowSession(false);
     setIsResumeBadgeDismissed(true);
   }
@@ -433,6 +479,11 @@ export default function Home() {
             <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.85fr)] lg:items-start">
             <div className="flex flex-col gap-5">
               <section className="w-full">
+                <h3 className="mb-4 text-xl font-semibold">Voice Mood</h3>
+                <VoiceMoodButton onMoodDetected={selectVoiceMood} />
+              </section>
+
+              <section className="w-full">
                 <h3 className="mb-4 text-xl font-semibold">Flow Modes</h3>
                 <ModeButtons
                   selectedMode={activeMode}
@@ -456,7 +507,7 @@ export default function Home() {
                       Robot note
                     </p>
                     <p className="mt-2 text-zinc-300">
-                      {robotMessages[activeMode]}
+                      {robotMessage}
                     </p>
                   </div>
                 </div>
