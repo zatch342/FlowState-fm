@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 import FlowScene from "@/components/FlowScene";
+import PlaybackControls, {
+  type PlayableRecommendation,
+} from "@/components/PlaybackControls";
 import VoiceMoodButton from "@/components/VoiceMoodButton";
 import { useFlowSession } from "@/hooks/useFlowSession";
 import type { MoodParseResult } from "@/lib/parseMood";
@@ -77,7 +80,10 @@ type RecommendationResponse = {
     image?: string;
     reason: string;
     score: number;
+    spotifyUri?: string;
+    spotifyUrl?: string;
     title: string;
+    trackId?: string;
   }[];
 };
 
@@ -297,6 +303,8 @@ export default function Home() {
   const [lastVoiceMoodInput, setLastVoiceMoodInput] = useState<string | null>(
     null,
   );
+  const [selectedPlaybackTrack, setSelectedPlaybackTrack] =
+    useState<PlayableRecommendation | null>(null);
   const [isResumeBadgeDismissed, setIsResumeBadgeDismissed] = useState(false);
   const [shouldPersistFlowSession, setShouldPersistFlowSession] =
     useState(true);
@@ -389,6 +397,7 @@ export default function Home() {
     setShouldPersistFlowSession(true);
     setSelectedMode(mode);
     setSelectedModeSource("manual");
+    setSelectedPlaybackTrack(null);
     setIsResumeBadgeDismissed(true);
   }
 
@@ -401,6 +410,7 @@ export default function Home() {
     setSelectedMode(result.mode);
     setSelectedModeSource("voice");
     setLastVoiceMoodInput(result.detectedMood);
+    setSelectedPlaybackTrack(null);
     setIsResumeBadgeDismissed(true);
   }, []);
 
@@ -411,6 +421,7 @@ export default function Home() {
 
     setShouldPersistFlowSession(true);
     setSelectedModeSource(null);
+    setSelectedPlaybackTrack(null);
     setIsResumeBadgeDismissed(true);
   }
 
@@ -419,6 +430,7 @@ export default function Home() {
     setSelectedMode(null);
     setSelectedModeSource(null);
     setLastVoiceMoodInput(null);
+    setSelectedPlaybackTrack(null);
     setShouldPersistFlowSession(false);
     setIsResumeBadgeDismissed(true);
   }
@@ -579,6 +591,10 @@ export default function Home() {
           {isFlowSessionReady ? (
           <section className="w-full">
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
+            <PlaybackControls
+              accessToken={session.accessToken}
+              selectedTrack={selectedPlaybackTrack}
+            />
             <SectionState
               emptyText="No strong matches found. Try another Flow Mode."
               error={recommendationState.error}
@@ -590,8 +606,8 @@ export default function Home() {
               <div className="flex flex-col gap-3">
                 {recommendedSongs.map((song) => (
                   <div
-                    key={`${song.title}-${song.artist}`}
-                    className="flex items-center gap-4"
+                    key={`${song.trackId ?? song.title}-${song.artist}`}
+                    className="flex items-center gap-4 rounded-lg border border-transparent p-2 transition hover:border-zinc-800 hover:bg-zinc-950/70"
                   >
                     <ImageBubble
                       label={`${song.title} cover`}
@@ -610,6 +626,24 @@ export default function Home() {
                     <p className="text-sm font-semibold text-green-400">
                       {song.score}
                     </p>
+                    <button
+                      aria-label={`Select ${song.title} for Spotify playback`}
+                      className="rounded-full border border-zinc-700 px-3 py-1.5 text-sm font-semibold text-zinc-200 transition hover:border-green-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!song.spotifyUri}
+                      onClick={() =>
+                        setSelectedPlaybackTrack({
+                          artist: song.artist,
+                          image: song.image,
+                          spotifyUri: song.spotifyUri,
+                          spotifyUrl: song.spotifyUrl,
+                          title: song.title,
+                          trackId: song.trackId,
+                        })
+                      }
+                      type="button"
+                    >
+                      Select
+                    </button>
                   </div>
                 ))}
               </div>

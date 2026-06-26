@@ -18,8 +18,13 @@ type SpotifyTrack = {
     name: string;
   }[];
   duration_ms?: number;
+  external_urls?: {
+    spotify?: string;
+  };
+  id?: string;
   name: string;
   popularity?: number;
+  uri?: string;
 };
 
 type SpotifyArtist = {

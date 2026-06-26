@@ -14,6 +14,9 @@ export type RecommendedSong = {
   image?: string;
   score: number;
   reason: string;
+  spotifyUri?: string;
+  spotifyUrl?: string;
+  trackId?: string;
 };
 
 type SpotifyTrack = SpotifyTrackForTaste & {
@@ -22,6 +25,11 @@ type SpotifyTrack = SpotifyTrackForTaste & {
       url: string;
     }[];
   };
+  external_urls?: {
+    spotify?: string;
+  };
+  id?: string;
+  uri?: string;
 };
 
 type SpotifyArtist = SpotifyArtistForTaste;
@@ -197,7 +205,10 @@ export function recommendSongs(
         title: track.name,
         artist: artist || "Unknown artist",
         image: track.album?.images?.[0]?.url,
+        spotifyUri: track.uri,
+        spotifyUrl: track.external_urls?.spotify,
         track,
+        trackId: track.id,
         ...recommendation,
       };
     })
@@ -209,6 +220,9 @@ export function recommendSongs(
       image: song.image,
       reason: song.reason,
       score: song.score,
+      spotifyUri: song.spotifyUri,
+      spotifyUrl: song.spotifyUrl,
       title: song.title,
+      trackId: song.trackId,
     }));
 }
