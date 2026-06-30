@@ -72,6 +72,20 @@ type SpotifyWindow = Window & {
 
 const SPOTIFY_SDK_SRC = "https://sdk.scdn.co/spotify-player.js";
 const SPOTIFY_READY_TIMEOUT_MS = 10000;
+const SPOTIFY_BROWSER_MESSAGE =
+  "Playback inside FlowState works best on desktop Chrome with Spotify Premium.";
+const SPOTIFY_FRESH_CONNECTION_MESSAGE =
+  "Spotify needs a fresh connection. Please log out and log in again.";
+
+export type SpotifyPlaybackStatus =
+  | "idle"
+  | "sdk-loading"
+  | "connecting-device"
+  | "player-ready"
+  | "playing"
+  | "paused"
+  | "unsupported-browser"
+  | "error";
 
 let sdkLoadPromise: Promise<void> | null = null;
 
@@ -144,7 +158,7 @@ function spotifyErrorMessage(error: SpotifyPlayerError) {
   }
 
   if (/authentication|token/i.test(message)) {
-    return "Spotify session expired. Sign out and connect Spotify again.";
+    return SPOTIFY_FRESH_CONNECTION_MESSAGE;
   }
 
   return message;
@@ -158,6 +172,7 @@ export function useSpotifyPlayer(accessToken?: string) {
   const [isReady, setIsReady] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(true);
+  const [status, setStatus] = useState<SpotifyPlaybackStatus>("idle");
   const [currentTrack, setCurrentTrack] = useState<SpotifyPlaybackTrack | null>(
     null,
   );
@@ -172,6 +187,7 @@ export function useSpotifyPlayer(accessToken?: string) {
     setIsReady(false);
     setIsActive(false);
     setIsPaused(true);
+    setStatus("idle");
     setCurrentTrack(null);
   }, []);
 
@@ -183,11 +199,13 @@ export function useSpotifyPlayer(accessToken?: string) {
 
   const connect = useCallback(async () => {
     if (!accessToken) {
-      setError("Spotify session expired. Sign out and connect Spotify again.");
+      setStatus("error");
+      setError(SPOTIFY_FRESH_CONNECTION_MESSAGE);
       return null;
     }
 
     if (playerRef.current && deviceId) {
+      setStatus(isPaused ? "paused" : "player-ready");
       return {
         deviceId,
         player: playerRef.current,
@@ -196,13 +214,16 @@ export function useSpotifyPlayer(accessToken?: string) {
 
     try {
       setError(null);
+      setStatus("sdk-loading");
       await loadSpotifySdk();
+      setStatus("connecting-device");
 
       const spotifyWindow = getSpotifyWindow();
       const Player = spotifyWindow?.Spotify?.Player;
 
       if (!Player) {
-        throw new Error("Spotify playback is not supported in this browser.");
+        setStatus("unsupported-browser");
+        throw new Error(SPOTIFY_BROWSER_MESSAGE);
       }
 
       let resolveReadyDevice: (readyDeviceId: string) => void = () => {};
@@ -227,12 +248,14 @@ export function useSpotifyPlayer(accessToken?: string) {
         setDeviceId(readyDeviceId);
         setIsReady(true);
         setIsActive(true);
+        setStatus("player-ready");
         window.clearTimeout(readyDeviceTimeout);
         resolveReadyDevice(readyDeviceId);
       });
       nextPlayer.addListener("not_ready", () => {
         setIsReady(false);
         setIsActive(false);
+        setStatus("connecting-device");
       });
       nextPlayer.addListener("player_state_changed", (state) => {
         if (!state) {
@@ -241,21 +264,27 @@ export function useSpotifyPlayer(accessToken?: string) {
 
         setIsActive(true);
         setIsPaused(state.paused);
+        setStatus(state.paused ? "paused" : "playing");
         setCurrentTrack(state.track_window.current_track);
       });
       nextPlayer.addListener("initialization_error", (playerError) => {
+        setStatus("error");
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("authentication_error", (playerError) => {
+        setStatus("error");
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("account_error", (playerError) => {
+        setStatus("error");
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("playback_error", (playerError) => {
+        setStatus("error");
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("autoplay_failed", () => {
+        setStatus("paused");
         setError("Spotify blocked playback. Press Play selected again to continue.");
       });
 
@@ -263,7 +292,8 @@ export function useSpotifyPlayer(accessToken?: string) {
 
       if (!connected) {
         window.clearTimeout(readyDeviceTimeout);
-        setError("Spotify playback could not connect on this browser.");
+        setStatus("unsupported-browser");
+        setError(SPOTIFY_BROWSER_MESSAGE);
         return null;
       }
 
@@ -276,14 +306,17 @@ export function useSpotifyPlayer(accessToken?: string) {
         player: nextPlayer,
       };
     } catch (connectError) {
-      setError(
+      const message =
         connectError instanceof Error
           ? connectError.message
-          : "Spotify playback could not start.",
+          : "Spotify playback could not start.";
+      setStatus(
+        message === SPOTIFY_BROWSER_MESSAGE ? "unsupported-browser" : "error",
       );
+      setError(message);
       return null;
     }
-  }, [accessToken, deviceId]);
+  }, [accessToken, deviceId, isPaused]);
 
   return {
     connect,
@@ -292,8 +325,12 @@ export function useSpotifyPlayer(accessToken?: string) {
     disconnect,
     error,
     isActive,
+    isConnecting: status === "connecting-device",
     isPaused,
     isReady,
+    isSdkLoading: status === "sdk-loading",
+    isUnsupportedBrowser: status === "unsupported-browser",
     player,
+    status,
   };
 }

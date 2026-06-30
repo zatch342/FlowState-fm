@@ -341,6 +341,9 @@ export default function Home() {
     null;
   const activeMode =
     selectedMode ?? restoredMode ?? taste?.dominantCategory ?? "focus";
+  const activeModeLabel =
+    flowCategories.find((category) => category.key === activeMode)?.label ??
+    activeMode;
   const shouldShowResumeBadge =
     isAuthenticated && !isResumeBadgeDismissed && restoredMode !== null;
   const recommendationState = useSpotifyResource<RecommendationResponse>(
@@ -593,6 +596,7 @@ export default function Home() {
             <h3 className="mb-4 text-xl font-semibold">Recommended Now</h3>
             <PlaybackControls
               accessToken={session.accessToken}
+              modeLabel={activeModeLabel}
               selectedTrack={selectedPlaybackTrack}
             />
             <SectionState
@@ -623,27 +627,40 @@ export default function Home() {
                         Why this? {song.reason}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-green-400">
-                      {song.score}
-                    </p>
-                    <button
-                      aria-label={`Select ${song.title} for Spotify playback`}
-                      className="rounded-full border border-zinc-700 px-3 py-1.5 text-sm font-semibold text-zinc-200 transition hover:border-green-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!song.spotifyUri}
-                      onClick={() =>
-                        setSelectedPlaybackTrack({
-                          artist: song.artist,
-                          image: song.image,
-                          spotifyUri: song.spotifyUri,
-                          spotifyUrl: song.spotifyUrl,
-                          title: song.title,
-                          trackId: song.trackId,
-                        })
-                      }
-                      type="button"
-                    >
-                      Select
-                    </button>
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                      <p className="text-sm font-semibold text-green-400">
+                        {song.score}
+                      </p>
+                      <button
+                        aria-label={`Play ${song.title} in FlowState`}
+                        className="rounded-full border border-zinc-700 px-3 py-1.5 text-sm font-semibold text-zinc-200 transition hover:border-green-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!song.spotifyUri}
+                        onClick={() =>
+                          setSelectedPlaybackTrack({
+                            artist: song.artist,
+                            image: song.image,
+                            spotifyUri: song.spotifyUri,
+                            spotifyUrl: song.spotifyUrl,
+                            title: song.title,
+                            trackId: song.trackId,
+                          })
+                        }
+                        type="button"
+                      >
+                        Play in FlowState
+                      </button>
+                      {song.spotifyUrl ? (
+                        <a
+                          aria-label={`Open ${song.title} in Spotify`}
+                          className="rounded-full border border-zinc-800 px-3 py-1.5 text-sm font-semibold text-zinc-300 transition hover:border-green-300 hover:text-white"
+                          href={song.spotifyUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Open in Spotify
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
