@@ -75,7 +75,8 @@ const SPOTIFY_READY_TIMEOUT_MS = 10000;
 const SPOTIFY_BROWSER_MESSAGE =
   "Playback inside FlowState works best on desktop Chrome with Spotify Premium.";
 const SPOTIFY_FRESH_CONNECTION_MESSAGE =
-  "Spotify needs a fresh connection. Please log out and log in again.";
+  "Spotify needs a fresh login. Please log out and log in again.";
+const IS_DEVELOPMENT = process.env.NODE_ENV === "development";
 
 export type SpotifyPlaybackStatus =
   | "idle"
@@ -88,6 +89,23 @@ export type SpotifyPlaybackStatus =
   | "error";
 
 let sdkLoadPromise: Promise<void> | null = null;
+
+export const playbackDiagnostics = {
+  log(event: string, detail?: Record<string, unknown>) {
+    if (!IS_DEVELOPMENT) {
+      return;
+    }
+
+    console.info("[FlowState playback]", event, detail ?? {});
+  },
+  error(event: string, detail?: Record<string, unknown>) {
+    if (!IS_DEVELOPMENT) {
+      return;
+    }
+
+    console.error("[FlowState playback]", event, detail ?? {});
+  },
+};
 
 function getSpotifyWindow() {
   if (typeof window === "undefined") {
@@ -128,6 +146,9 @@ function loadSpotifySdk() {
     if (existingScript) {
       existingScript.addEventListener("error", () => {
         window.clearTimeout(timeout);
+        playbackDiagnostics.error("SDK/player error", {
+          reason: "existing script failed",
+        });
         reject(new Error("Spotify playback could not load."));
       });
       return;
@@ -138,6 +159,9 @@ function loadSpotifySdk() {
     script.src = SPOTIFY_SDK_SRC;
     script.addEventListener("error", () => {
       window.clearTimeout(timeout);
+      playbackDiagnostics.error("SDK/player error", {
+        reason: "script failed",
+      });
       reject(new Error("Spotify playback could not load."));
     });
     document.body.appendChild(script);
@@ -216,6 +240,7 @@ export function useSpotifyPlayer(accessToken?: string) {
       setError(null);
       setStatus("sdk-loading");
       await loadSpotifySdk();
+      playbackDiagnostics.log("SDK loaded");
       setStatus("connecting-device");
 
       const spotifyWindow = getSpotifyWindow();
@@ -249,6 +274,12 @@ export function useSpotifyPlayer(accessToken?: string) {
         setIsReady(true);
         setIsActive(true);
         setStatus("player-ready");
+        playbackDiagnostics.log("player ready", {
+          deviceId: readyDeviceId,
+        });
+        playbackDiagnostics.log("device ID available", {
+          deviceId: readyDeviceId,
+        });
         window.clearTimeout(readyDeviceTimeout);
         resolveReadyDevice(readyDeviceId);
       });
@@ -269,18 +300,34 @@ export function useSpotifyPlayer(accessToken?: string) {
       });
       nextPlayer.addListener("initialization_error", (playerError) => {
         setStatus("error");
+        playbackDiagnostics.error("SDK/player error", {
+          message: playerError.message,
+          type: "initialization_error",
+        });
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("authentication_error", (playerError) => {
         setStatus("error");
+        playbackDiagnostics.error("SDK/player error", {
+          message: playerError.message,
+          type: "authentication_error",
+        });
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("account_error", (playerError) => {
         setStatus("error");
+        playbackDiagnostics.error("SDK/player error", {
+          message: playerError.message,
+          type: "account_error",
+        });
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("playback_error", (playerError) => {
         setStatus("error");
+        playbackDiagnostics.error("SDK/player error", {
+          message: playerError.message,
+          type: "playback_error",
+        });
         setError(spotifyErrorMessage(playerError));
       });
       nextPlayer.addListener("autoplay_failed", () => {
@@ -313,6 +360,7 @@ export function useSpotifyPlayer(accessToken?: string) {
       setStatus(
         message === SPOTIFY_BROWSER_MESSAGE ? "unsupported-browser" : "error",
       );
+      playbackDiagnostics.error("SDK/player error", { message });
       setError(message);
       return null;
     }

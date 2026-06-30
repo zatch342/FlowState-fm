@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 
-import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
+import {
+  playbackDiagnostics,
+  useSpotifyPlayer,
+} from "@/hooks/useSpotifyPlayer";
 
 export type PlayableRecommendation = {
   artist: string;
@@ -20,9 +23,17 @@ type PlaybackControlsProps = {
 };
 
 const FRESH_CONNECTION_MESSAGE =
-  "Spotify needs a fresh connection. Please log out and log in again.";
+  "Spotify needs a fresh login. Please log out and log in again.";
 const BROWSER_EXPECTATION_MESSAGE =
   "Playback inside FlowState works best on desktop Chrome with Spotify Premium.";
+const PREMIUM_MESSAGE =
+  "Spotify Premium may be required to play inside FlowState.";
+const DEVICE_MESSAGE =
+  "No active Spotify device was found. Try opening Spotify once, then try again.";
+const RATE_LIMIT_MESSAGE =
+  "Spotify is rate-limiting requests. Wait a moment and try again.";
+const GENERIC_PLAYBACK_MESSAGE =
+  "Spotify playback could not complete that request. You can still open the track in Spotify.";
 
 async function sendSpotifyRequest(
   endpoint: string,
@@ -42,15 +53,23 @@ async function sendSpotifyRequest(
     return;
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     throw new Error(FRESH_CONNECTION_MESSAGE);
   }
 
-  if (response.status === 404) {
-    throw new Error("No active Spotify device was found.");
+  if (response.status === 403) {
+    throw new Error(PREMIUM_MESSAGE);
   }
 
-  throw new Error("Spotify playback could not complete that request.");
+  if (response.status === 404) {
+    throw new Error(DEVICE_MESSAGE);
+  }
+
+  if (response.status === 429) {
+    throw new Error(RATE_LIMIT_MESSAGE);
+  }
+
+  throw new Error(GENERIC_PLAYBACK_MESSAGE);
 }
 
 function imageForTrack(track: PlayableRecommendation | null) {
@@ -79,6 +98,9 @@ export default function PlaybackControls({
   const [isTransferring, setIsTransferring] = useState(false);
   const [isStartingPlayback, setIsStartingPlayback] = useState(false);
   const [controlError, setControlError] = useState<string | null>(null);
+  const [lastStartedSpotifyUri, setLastStartedSpotifyUri] = useState<
+    string | null
+  >(null);
   const playRequestRef = useRef(false);
   const displayedTrack = currentTrack
     ? {
@@ -88,8 +110,18 @@ export default function PlaybackControls({
       }
     : selectedTrack;
   const isBusy = isLoading || isTransferring || isStartingPlayback;
+  const isPlaybackSettling =
+    status === "playing" || status === "player-ready" || isStartingPlayback;
+  const isSelectedTrackPlaying =
+    (status === "playing" && selectedTrack?.spotifyUri === currentTrack?.uri) ||
+    (isPlaybackSettling &&
+      selectedTrack?.spotifyUri === lastStartedSpotifyUri);
   const canPlayInFlowState =
-    Boolean(accessToken && selectedTrack?.spotifyUri) && !isUnsupportedBrowser;
+    Boolean(accessToken && selectedTrack?.spotifyUri) &&
+    !isUnsupportedBrowser &&
+    !isSdkLoading &&
+    !isConnecting &&
+    !isSelectedTrackPlaying;
   const message = controlError ?? playerError;
   const shouldShowFallback =
     Boolean(selectedTrack?.spotifyUrl) &&
@@ -115,9 +147,14 @@ export default function PlaybackControls({
   const supportMessage = isUnsupportedBrowser
     ? BROWSER_EXPECTATION_MESSAGE
     : "Pick a recommendation, then play it inside FlowState. Spotify Premium is required.";
+  const playButtonText = isBusy
+    ? statusLabel
+    : isSelectedTrackPlaying
+      ? "Playing in FlowState"
+      : "Play in FlowState";
 
   async function playSelectedTrack() {
-    if (playRequestRef.current) {
+    if (playRequestRef.current || isBusy || isSdkLoading || isConnecting) {
       return;
     }
 
@@ -140,11 +177,16 @@ export default function PlaybackControls({
       const activeDeviceId = connection?.deviceId ?? deviceId;
 
       if (!activeDeviceId) {
-        throw new Error("Spotify playback is still connecting. Try again in a moment.");
+        throw new Error(
+          "FlowState could not find a Spotify playback device yet. Try again in a moment or open the track in Spotify.",
+        );
       }
 
       setIsLoading(false);
       setIsTransferring(true);
+      playbackDiagnostics.log("transfer playback started", {
+        deviceId: activeDeviceId,
+      });
       await sendSpotifyRequest("/me/player", accessToken, {
         body: JSON.stringify({
           device_ids: [activeDeviceId],
@@ -152,15 +194,32 @@ export default function PlaybackControls({
         }),
         method: "PUT",
       });
+      playbackDiagnostics.log("transfer playback succeeded", {
+        deviceId: activeDeviceId,
+      });
       setIsTransferring(false);
       setIsStartingPlayback(true);
+      playbackDiagnostics.log("play request started", {
+        spotifyUri: selectedTrack.spotifyUri,
+      });
       await sendSpotifyRequest(`/me/player/play?device_id=${activeDeviceId}`, accessToken, {
         body: JSON.stringify({
           uris: [selectedTrack.spotifyUri],
         }),
         method: "PUT",
       });
+      setLastStartedSpotifyUri(selectedTrack.spotifyUri);
+      playbackDiagnostics.log("play request succeeded", {
+        spotifyUri: selectedTrack.spotifyUri,
+      });
     } catch (playError) {
+      playbackDiagnostics.error("SDK/player error", {
+        message:
+          playError instanceof Error
+            ? playError.message
+            : "Spotify playback could not start.",
+        phase: "playSelectedTrack",
+      });
       setControlError(
         playError instanceof Error
           ? playError.message
@@ -175,7 +234,7 @@ export default function PlaybackControls({
   }
 
   async function togglePlayback() {
-    if (!player || isBusy) {
+    if (!player || isBusy || isSdkLoading || isConnecting) {
       return;
     }
 
@@ -183,13 +242,24 @@ export default function PlaybackControls({
     setControlError(null);
 
     try {
+      playbackDiagnostics.log("pause/resume request started", {
+        action: isPaused ? "resume" : "pause",
+      });
       if (isPaused) {
         await player.resume();
       } else {
         await player.pause();
       }
+      playbackDiagnostics.log("pause/resume request succeeded", {
+        action: isPaused ? "resume" : "pause",
+      });
     } catch {
-      setControlError("Spotify playback controls are temporarily unavailable.");
+      playbackDiagnostics.error("SDK/player error", {
+        phase: "togglePlayback",
+      });
+      setControlError(
+        "Spotify playback controls are temporarily unavailable. You can still open the track in Spotify.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -260,13 +330,13 @@ export default function PlaybackControls({
             onClick={playSelectedTrack}
             type="button"
           >
-            {isBusy ? statusLabel : "Play in FlowState"}
+            {playButtonText}
           </button>
 
           <button
             aria-label={isPaused ? "Resume Spotify playback" : "Pause Spotify playback"}
             className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isBusy || !isReady || !player}
+            disabled={isBusy || isSdkLoading || isConnecting || !isReady || !player}
             onClick={togglePlayback}
             type="button"
           >
